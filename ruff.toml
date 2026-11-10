@@ -1,0 +1,4 @@
+line-length = 120
+extend-exclude = [".venv", "1_foundations"]
+[lint.per-file-ignores]
+"eval/scratch/*" = ["E702"]
