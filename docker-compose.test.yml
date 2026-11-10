@@ -1,0 +1,50 @@
+# Isolated test environment: the agent talks only to the mock sink and (optionally) a local model.
+# No real credentials. Start with:  docker compose -f docker-compose.test.yml up --build
+# Hosted-API runs need a route out; use the `hosted` profile and pass the key at run time (never in this file).
+networks:
+  internal:
+    internal: true        # no route to the internet
+  egress:                 # used only by the `hosted` profile
+services:
+  mock-sink:
+    build: {context: ., dockerfile: Dockerfile.test, target: sink}
+    networks: [internal]
+    user: "10001:10001"
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    mem_limit: 128m
+    cpus: 0.5
+  agent:
+    build: {context: ., dockerfile: Dockerfile.test, target: agent}
+    networks: [internal]
+    user: "10001:10001"
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    mem_limit: 512m
+    cpus: 1.0
+    environment:
+      TWIN_TEST_MODE: "true"
+      TWIN_LOG_PATH: /tmp/run.jsonl
+      OPENAI_BASE_URL: http://ollama:11434/v1
+    depends_on: [mock-sink]
+  ollama:
+    image: ollama/ollama:0.5.7   # local model; pull weights outside the sandbox and mount read-only
+    profiles: [local]
+    networks: [internal]
+    mem_limit: 8g
+    cpus: 4.0
+  agent-hosted:
+    build: {context: ., dockerfile: Dockerfile.test, target: agent}
+    profiles: [hosted]
+    networks: [internal, egress]
+    user: "10001:10001"
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    mem_limit: 512m
+    cpus: 1.0
+    environment:
+      TWIN_TEST_MODE: "true"   # tools still go to the mock backend; only the LLM API is reachable
+      OPENAI_API_KEY: ${OPENAI_API_KEY:?set at run time}
