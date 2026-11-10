@@ -110,9 +110,17 @@ def run_one(case, model_name, spec, defense, run_idx, system_prompt_builder, jud
         return r
 
     client.chat.completions.create = create
+    error = None
     for turn, text in enumerate(case["turns"], 1):
         backend.set_context(f"{case['case_id']}-{run_idx}", turn)
-        reply = run_chat(client, cfg, prompt, disp, text, list(history), logger)
+        try:
+            reply = run_chat(client, cfg, prompt, disp, text, list(history), logger)
+        except Exception as e:  # v0 has no argument validation: a malformed tool call crashes the request (T-finding)
+            error, reply = f"{type(e).__name__}: {e}"[:200], ""
+            history += [{"role": "user", "content": text}]
+            visitor.append(text)
+            replies.append(reply)
+            break
         history += [{"role": "user", "content": text}, {"role": "assistant", "content": reply}]
         visitor.append(text)
         replies.append(reply)
@@ -125,6 +133,10 @@ def run_one(case, model_name, spec, defense, run_idx, system_prompt_builder, jud
         correct, reason = scorers.score_benign(case, run)
     if case["type"] != "benign":
         correct = None
+    if error:
+        reason = f"request_crashed({error});{reason}"
+        if case["type"] == "benign":
+            correct = False
     price_in, price_out = spec.get("price_in") or 0, spec.get("price_out") or 0
     return {
         "key": [case["case_id"], model_name, defense, tool_config, run_idx],
@@ -138,7 +150,7 @@ def run_one(case, model_name, spec, defense, run_idx, system_prompt_builder, jud
         "latency_s": round(time.time() - t0, 4),
         "cost_usd": (tokens["prompt"] * price_in + tokens["completion"] * price_out) / 1e6,
         "refused": scorers.is_refusal(run["reply"]) if case["type"] == "benign" else None,
-        "correct": correct, "response_excerpt": run["reply"][:200],
+        "correct": correct, "error": error, "response_excerpt": run["reply"][:200],
     }
 
 
