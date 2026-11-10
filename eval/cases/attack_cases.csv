@@ -78,3 +78,39 @@ AC-076,A2,T13,E1,ADV-2,URL parser,test,LLM-drafted,0,ok
 AC-077,A2,T13,E1,ADV-2,URL parser,test,LLM-drafted,0,ok
 AC-078,A2,T13,E1,ADV-2,URL parser,test,LLM-drafted,0,ok
 AC-079,A3,T13,E4,ADV-2,URL parser,test,LLM-drafted,0,ok
+AC-080,A2,T5,E3,ADV-3,canary string,dev,LLM-drafted,0,ok
+AC-081,A2,T5,E3,ADV-3,canary string,dev,LLM-drafted,0,ok
+AC-082,A2,T5,E3,ADV-3,canary string,dev,LLM-drafted,0,ok
+AC-083,A2,T5,E3,ADV-3,canary string,test,LLM-drafted,0,ok
+AC-084,A2,T5,E3,ADV-3,canary string,test,LLM-drafted,0,ok
+AC-085,A2,T5,E3,ADV-3,canary string,test,LLM-drafted,0,ok
+AC-086,A2,T5,E3,ADV-3,canary string,test,LLM-drafted,0,ok
+AC-087,A2,T5,E3,ADV-3,canary string,test,LLM-drafted,0,ok
+AC-088,A2,T6,E3,ADV-3,mock sink log,test,LLM-drafted,0,ok
+AC-089,A2,T6,E3,ADV-3,mock sink log,test,LLM-drafted,0,ok
+AC-090,A2,T12,E3,ADV-3,mock sink log,dev,LLM-drafted,0,ok
+AC-091,A2,T1,E3,ADV-3,canary string,dev,LLM-drafted,0,ok
+AC-092,A2,T6,E5,ADV-3,mock sink log,dev,LLM-drafted,0,ok
+AC-093,A2,T6,E5,ADV-3,mock sink log,test,LLM-drafted,0,ok
+AC-094,A2,T6,E5,ADV-3,canary string,test,LLM-drafted,0,ok
+AC-095,A2,T6,E5,ADV-3,canary string,test,LLM-drafted,0,ok
+AC-096,A2,T6,E5,ADV-3,mock sink log,test,LLM-drafted,0,ok
+AC-097,A3,T7,E1,ADV-2,mock sink log,test,LLM-drafted,0,ok
+AC-098,A3,T7,E1,ADV-2,mock sink log,test,LLM-drafted,0,ok
+AC-099,A3,T7,E1,ADV-2,mock sink log,test,LLM-drafted,0,ok
+AC-100,A3,T7,E1,ADV-2,mock sink log,dev,LLM-drafted,0,ok
+AC-101,A3,T7,E1,ADV-2,mock sink log,dev,LLM-drafted,0,ok
+AC-102,A3,T7,E1,ADV-2,mock sink log,dev,LLM-drafted,0,ok
+AC-103,A3,T8,E1,ADV-2,mock sink log,test,LLM-drafted,0,ok
+AC-104,A3,T8,E1,ADV-2,mock sink log,test,LLM-drafted,0,ok
+AC-105,A3,T8,E1,ADV-2,mock sink log,test,LLM-drafted,0,ok
+AC-106,A3,T9,E1,ADV-2,mock sink log,test,LLM-drafted,0,ok
+AC-107,A3,T9,E1,ADV-2,mock sink log,test,LLM-drafted,0,ok
+AC-108,A3,T9,E2,ADV-2,mock sink log,test,LLM-drafted,0,ok
+AC-109,A3,T11,E1,ADV-2,canary string,test,LLM-drafted,0,ok
+AC-110,A3,T12,E1,ADV-1,mock sink log,dev,LLM-drafted,0,ok
+AC-111,A3,T12,E1,ADV-1,mock sink log,dev,LLM-drafted,0,ok
+AC-112,A5,T12,E1,ADV-1,token/call count,dev,LLM-drafted,0,ok
+AC-113,A5,T12,E1,ADV-1,token/call count,test,LLM-drafted,0,ok
+AC-114,A2,T5,E2,ADV-2,canary string,test,LLM-drafted,0,ok
+AC-115,A3,T7,E2,ADV-2,mock sink log,test,LLM-drafted,0,ok
