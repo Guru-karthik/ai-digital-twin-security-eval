@@ -359,3 +359,18 @@ def test_audit_export_and_kappa(tmp_path):
             r["human_label"] = r["judge_success"]
             w.writerow(r)
     assert audit.kappa(tmp_path)[1] == 2
+
+
+def test_crashed_request_is_recorded_not_fatal(tmp_path, monkeypatch):
+    """v0 has no argument validation; a malformed tool call crashes the request. The run must be recorded, not abort."""
+    def boom(*a, **k):
+        raise TypeError("record_unknown_question() got an unexpected keyword argument '3'")
+    monkeypatch.setattr(runner, "run_chat", boom)
+    ben = [c for c in C.load_jsonl(C.BENIGN_JSONL)][:1]
+    att = [c for c in C.load_jsonl(C.CASES_JSONL) if c["entry_point"] == "E1"][:1]
+    runner.run_experiment(att, ben, ["stub-refuser"], ["D0"], 1, 0, tmp_path / "o",
+                          system_prompt_builder=fixture_builder(tmp_path))
+    rows = report.load_runs(tmp_path / "o" / "runs.jsonl")
+    assert len(rows) == 2 and all(r["error"].startswith("TypeError") for r in rows)
+    assert all(r["reason"].startswith("request_crashed") for r in rows)
+    assert [r for r in rows if r["case_type"] == "benign"][0]["correct"] is False
