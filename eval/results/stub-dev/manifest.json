@@ -1,0 +1,27 @@
+{
+  "seed": 0,
+  "date": "2026-11-10",
+  "models": {
+    "stub-gullible": {
+      "provider": "stub",
+      "policy": "gullible",
+      "price_in": 0,
+      "price_out": 0,
+      "note": "pipeline test only"
+    },
+    "stub-refuser": {
+      "provider": "stub",
+      "policy": "refuser",
+      "price_in": 0,
+      "price_out": 0,
+      "note": "pipeline test only"
+    }
+  },
+  "defenses": [
+    "D0"
+  ],
+  "k": 2,
+  "split": "dev",
+  "tool_config": 0,
+  "cases_sha256": "59796ed8b5fc"
+}
