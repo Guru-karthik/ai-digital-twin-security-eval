@@ -1,0 +1,2 @@
+Replace this file with a short summary about the person the twin represents (name, background, interests).
+The real summary.txt and linkedin.pdf are git-ignored; experiments use the fictional persona in eval/fixtures/persona.json.
