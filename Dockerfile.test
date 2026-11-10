@@ -1,0 +1,15 @@
+FROM python:3.12-slim AS base
+RUN useradd -u 10001 -m twin
+WORKDIR /app
+COPY twin/requirements.txt twin/requirements.txt
+RUN pip install --no-cache-dir -r twin/requirements.txt pyyaml
+COPY twin twin
+USER 10001
+
+FROM base AS agent
+WORKDIR /app/twin
+CMD ["python", "-c", "print('agent image ready; the harness (Phase 2) drives twin/agent.py')"]
+
+FROM base AS sink
+# Placeholder: the mock sink service is the in-process MockBackend until the harness (Phase 2) needs a network one.
+CMD ["python", "-c", "print('mock sink placeholder')"]
