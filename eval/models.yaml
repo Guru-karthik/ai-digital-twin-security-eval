@@ -25,7 +25,7 @@ models:
   hosted-gpt-5-nano:
     provider: openai_compatible
     base_url: https://api.openai.com/v1
-    model: gpt-5-nano
+    model: gpt-5-nano           # preflight 2026-11-10: served as gpt-5-nano-2025-08-07, tool calling OK
     price_in: 0.05
     price_out: 0.40
-    temperature: null           # temperature support UNVERIFIED for this model; preflight checks it
+    temperature: null           # not tested; reasoning models often reject custom temperature, so default is used
