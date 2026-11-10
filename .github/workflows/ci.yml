@@ -1,0 +1,20 @@
+name: ci
+on: [push, pull_request]
+permissions: {contents: read}
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - run: pip install -r requirements-dev.txt openai==2.34.0 pypdf==6.10.2 requests python-dotenv openpyxl==3.1.5 matplotlib
+      - run: ruff check twin tests eval
+      - name: Tests (stubbed model, no API keys, no network)
+        run: python -m pytest -q tests
+      - name: Smoke subset
+        run: python -m pytest -q tests/test_d0_equivalence.py
+      - name: Harness smoke run (stub models, dev split)
+        run: |
+          PYTHONPATH=. python -m eval.harness.run --models stub-gullible stub-refuser --split dev --k 1 --out /tmp/smoke
+          PYTHONPATH=. python -m eval.harness.report /tmp/smoke
