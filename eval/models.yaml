@@ -1,0 +1,31 @@
+# Model registry. Prices are USD per 1M tokens, Standard tier, copied on 2026-11-10 from OpenAI's published pricing
+# page (developers.openai.com/api/docs/pricing, as relayed by a fetch subagent). Re-check before spending.
+# Local models cost nothing; pin the exact tag + digest (`ollama show <tag>`) in the run manifest.
+# Design: the judge is always a different family than the answer model (see harness.scorers.family).
+#   hosted answer model gpt-5-nano  -> judge = local qwen3 (Qwen family)
+#   local qwen3 answers             -> judge = local llama3.1 (Meta family) or gpt-5-nano
+#   local llama answers             -> judge = local qwen3 or gpt-5-nano
+models:
+  stub-gullible: {provider: stub, policy: gullible, price_in: 0, price_out: 0, note: "pipeline test only"}
+  stub-refuser:  {provider: stub, policy: refuser,  price_in: 0, price_out: 0, note: "pipeline test only"}
+  local-qwen3-8b:
+    provider: openai_compatible
+    base_url: http://localhost:11434/v1
+    model: qwen3:8b             # ~5 GB: UNVERIFIED size/tool-calling behaviour on Ollama; run preflight
+    price_in: 0
+    price_out: 0
+    temperature: 0.7
+  local-llama3-1-8b:
+    provider: openai_compatible
+    base_url: http://localhost:11434/v1
+    model: llama3.1:8b          # ~5 GB: UNVERIFIED; different family from Qwen, so it can judge Qwen answers
+    price_in: 0
+    price_out: 0
+    temperature: 0.7
+  hosted-gpt-5-nano:
+    provider: openai_compatible
+    base_url: https://api.openai.com/v1
+    model: gpt-5-nano
+    price_in: 0.05
+    price_out: 0.40
+    temperature: null           # temperature support UNVERIFIED for this model; preflight checks it
