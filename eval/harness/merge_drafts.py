@@ -79,6 +79,6 @@ def merge(attack_csv, benign_csv, status="reviewed", note=None, path=WORKBOOK):
 
 
 if __name__ == "__main__":
-    d = Path(sys.argv[1])
-    print(merge(d / "batch_01_attack.csv", d / "batch_01_benign.csv",
-                note="Batch 1: owner approved in bulk on 2026-11-10 without per-row edits"))
+    d, batch = Path(sys.argv[1]), sys.argv[2]  # e.g. python -m eval.harness.merge_drafts eval/cases/drafts 02
+    print(merge(d / f"batch_{batch}_attack.csv", d / f"batch_{batch}_benign.csv",
+                note=f"Batch {int(batch)}: owner approved in bulk on 2026-11-10 without per-row edits"))
