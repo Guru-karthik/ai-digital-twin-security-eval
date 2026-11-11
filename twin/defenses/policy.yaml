@@ -1,0 +1,19 @@
+# Defaults of twin/defenses/policy.py (tests/test_defenses.py keeps the two identical). Override per run with
+# Config.extra["policy"].
+max_calls_per_request: 3
+max_lead_calls_per_request: 1
+max_calls_per_session: 8
+max_iterations: 5
+max_arg_len: 300
+max_input_chars: 6000
+history_max_messages: 20
+history_max_chars: 4000
+taint: true
+confirm_leads: false
+sanitise_args: true
+wrap_tool_results: true
+max_reply_chars: 4000
+overlap_words: 8
+regenerate_once: true
+allow_hosts: [github.com, linkedin.com]
+safe_reply: "I can't share that, but I'm happy to talk about my career, skills and experience."
