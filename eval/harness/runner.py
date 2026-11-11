@@ -17,6 +17,7 @@ sys.path.insert(0, str(ROOT / "twin"))
 from agent import run_chat  # noqa: E402
 from backends import MockBackend  # noqa: E402
 from config import Config  # noqa: E402
+from defenses import Defenses  # noqa: E402
 from dispatcher import Dispatcher  # noqa: E402
 from runlog import RunLogger  # noqa: E402
 
@@ -84,7 +85,9 @@ def completed_keys(path):
 
 
 def config_for(defense, model_spec, log_path=None):
-    return Config(defense=defense, model=model_spec.get("model", "stub"), provider=model_spec["provider"],
+    """`defense` is a level optionally followed by modules, e.g. "D2" or "D2+M1"."""
+    level, *mods = defense.split("+")
+    return Config(defense=level, modules=tuple(mods), model=model_spec.get("model", "stub"), provider=model_spec["provider"],
                   temperature=model_spec.get("temperature"), test_mode=True, log_path=log_path)
 
 
@@ -92,10 +95,13 @@ def run_one(case, model_name, spec, defense, run_idx, system_prompt_builder, jud
             log_path=None, tool_config=0):
     cfg = config_for(defense, spec, log_path)
     backend = MockBackend(results=case.get("tool_results") or {})
-    disp = Dispatcher(backend, cfg)
+    defs = Defenses.from_config(cfg, canaries=[SYSTEM_CANARY])
+    disp = Dispatcher.with_defenses(backend, cfg, defs)
     logger = RunLogger(path=log_path, case_id=case["case_id"], config=cfg)
     client = make_client(spec)
-    prompt = system_prompt_builder(case.get("planted_summary"))
+    base_prompt = system_prompt_builder(case.get("planted_summary"))
+    prompt = defs.prompt(base_prompt) if defs else base_prompt
+    decisions = []
     history, replies, visitor, tokens, t0 = [], [], [], {"prompt": 0, "completion": 0}, time.time()
     model_ids = set()
     orig = client.chat.completions.create
@@ -114,7 +120,9 @@ def run_one(case, model_name, spec, defense, run_idx, system_prompt_builder, jud
     for turn, text in enumerate(case["turns"], 1):
         backend.set_context(f"{case['case_id']}-{run_idx}", turn)
         try:
-            reply = run_chat(client, cfg, prompt, disp, text, list(history), logger)
+            reply = run_chat(client, cfg, prompt, disp, text, list(history), logger, defenses=defs,
+                             base_prompt=base_prompt)
+            decisions += disp.decisions
         except Exception as e:  # v0 has no argument validation: a malformed tool call crashes the request (T-finding)
             error, reply = f"{type(e).__name__}: {e}"[:200], ""
             history += [{"role": "user", "content": text}]
@@ -125,7 +133,7 @@ def run_one(case, model_name, spec, defense, run_idx, system_prompt_builder, jud
         visitor.append(text)
         replies.append(reply)
     run = {"reply": replies[-1], "replies": replies, "calls": backend.calls, "visitor_messages": visitor,
-           "system_prompt": prompt, "system_canary": SYSTEM_CANARY, "tokens": tokens, "model": spec.get("model", model_name)}
+           "system_prompt": base_prompt, "system_canary": SYSTEM_CANARY, "tokens": tokens, "model": spec.get("model", model_name)}
     if case["type"] == "attack":
         success, reason = scorers.score_case(case, run, judge, judge_model)
     else:
@@ -150,7 +158,8 @@ def run_one(case, model_name, spec, defense, run_idx, system_prompt_builder, jud
         "latency_s": round(time.time() - t0, 4),
         "cost_usd": (tokens["prompt"] * price_in + tokens["completion"] * price_out) / 1e6,
         "refused": scorers.is_refusal(run["reply"]) if case["type"] == "benign" else None,
-        "correct": correct, "error": error, "response_excerpt": run["reply"][:200],
+        "correct": correct, "error": error,
+        "decisions": [f"{d.get('tool', '-')}:{d['decision']}:{d['reason']}" for d in decisions], "response_excerpt": run["reply"][:200],
     }
 
 
