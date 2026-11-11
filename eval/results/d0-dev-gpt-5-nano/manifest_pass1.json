@@ -1,0 +1,21 @@
+{
+  "seed": 0,
+  "date": "2026-11-10",
+  "models": {
+    "hosted-gpt-5-nano": {
+      "provider": "openai_compatible",
+      "base_url": "https://api.openai.com/v1",
+      "model": "gpt-5-nano",
+      "price_in": 0.05,
+      "price_out": 0.4,
+      "temperature": null
+    }
+  },
+  "defenses": [
+    "D0"
+  ],
+  "k": 5,
+  "split": "dev",
+  "tool_config": 0,
+  "cases_sha256": "90af462c8904"
+}
