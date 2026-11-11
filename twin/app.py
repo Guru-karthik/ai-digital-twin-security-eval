@@ -3,6 +3,7 @@ from agent import run_chat
 from backends import make_backend
 from config import load_config
 from context import build_system_prompt
+from defenses import Defenses
 from dispatcher import Dispatcher
 from runlog import RunLogger
 from styles import CSS, JS, EXAMPLES
@@ -13,14 +14,17 @@ load_dotenv(override=True)
 
 config = load_config()
 client = OpenAI()
-system_prompt = build_system_prompt()
+base_prompt = build_system_prompt()
+defenses = Defenses.from_config(config, canaries=config.extra.get("canaries", ()))  # None at D0
+system_prompt = defenses.prompt(base_prompt) if defenses else base_prompt
 backend = make_backend(config)
 logger = RunLogger(path=config.log_path, config=config)
 
 
 def chat(message, history):
-    dispatcher = Dispatcher(backend, config)  # per request: no shared per-request state
-    return run_chat(client, config, system_prompt, dispatcher, message, history, logger)
+    dispatcher = Dispatcher.with_defenses(backend, config, defenses)  # per request: no shared per-request state
+    return run_chat(client, config, system_prompt, dispatcher, message, history, logger, defenses=defenses,
+                    base_prompt=base_prompt)
 
 
 if __name__ == "__main__":
