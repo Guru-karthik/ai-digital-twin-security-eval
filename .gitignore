@@ -221,3 +221,8 @@ memory.db
 # Personal inputs for the live twin (never commit)
 twin/summary.txt
 twin/linkedin.pdf
+
+# Manual attack lab: private notes, transcripts and persona (never commit)
+eval/manual/notes/
+eval/manual/transcripts/
+eval/manual/persona/
