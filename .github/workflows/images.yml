@@ -26,12 +26,10 @@ jobs:
           load: true
           tags: local/${{ matrix.name }}:ci
       - name: Trivy (fails on fixable HIGH/CRITICAL)
-        uses: aquasecurity/trivy-action@v0.28.0
-        with:
-          image-ref: local/${{ matrix.name }}:ci
-          severity: HIGH,CRITICAL
-          ignore-unfixed: true
-          exit-code: "1"
+        # Same container and flags used when the images were fixed locally; avoids a third-party action's own dependencies.
+        run: |
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy:0.58.0 \
+            image --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 local/${{ matrix.name }}:ci
       - name: Log in to GHCR
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         uses: docker/login-action@v3
