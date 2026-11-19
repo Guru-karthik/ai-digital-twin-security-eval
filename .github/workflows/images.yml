@@ -26,7 +26,7 @@ jobs:
           load: true
           tags: local/${{ matrix.name }}:ci
       - name: Trivy (fails on fixable HIGH/CRITICAL)
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.28.0
         with:
           image-ref: local/${{ matrix.name }}:ci
           severity: HIGH,CRITICAL
