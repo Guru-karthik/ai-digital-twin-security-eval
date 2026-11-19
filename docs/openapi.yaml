@@ -1,0 +1,561 @@
+openapi: 3.0.3
+info:
+  title: AI digital twin admin console API
+  version: 0.1.0
+  description: |
+    Contract shared by the Node gateway (`gateway/`), the Laravel API and dashboard (`console-php/`),
+    the eval-reporter and security-tests. Written first (milestone M1); services implement it.
+
+    Honest scope: the agent has no human-approval step. `AuditEvent` records decisions that exist
+    (D2 policy gate, D3 output guard, tool calls) plus admin actions taken in the console, which are a
+    console feature and not agent-side human-in-the-loop.
+servers:
+  - url: http://localhost:8080
+    description: Node gateway (public chat surface)
+  - url: http://localhost:8000
+    description: Laravel API (admin surface)
+tags:
+  - name: Chat
+    description: Served by the gateway
+  - name: Auth
+  - name: Leads
+  - name: Conversations
+  - name: Evaluation
+  - name: Audit
+  - name: Ops
+
+paths:
+  /health:
+    get:
+      tags: [Ops]
+      summary: Liveness probe (gateway, API, twin-api, eval-reporter all expose it)
+      security: []
+      responses:
+        "200":
+          description: Service is up
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status: { type: string, enum: [ok] }
+                  service: { type: string, example: gateway }
+  /metrics:
+    get:
+      tags: [Ops]
+      summary: Prometheus text exposition (gateway and API)
+      security: []
+      responses:
+        "200":
+          description: Metrics
+          content:
+            text/plain:
+              schema: { type: string }
+
+  /chat:
+    post:
+      tags: [Chat]
+      summary: Send a visitor message to the twin (gateway)
+      description: |
+        The agent is not streaming. With `Accept: text/event-stream` the gateway replays the finished
+        reply as SSE `delta` events followed by one `done` event. Otherwise a single JSON body is returned.
+      security:
+        - GatewayApiKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ChatRequest" }
+      responses:
+        "200":
+          description: Reply
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ChatResponse" }
+            text/event-stream:
+              schema:
+                type: string
+                description: |
+                  `event: delta` with `data: {"text": "..."}` repeated, then `event: done` with `data: {"conversation_id": "..."}`.
+        "400": { $ref: "#/components/responses/ValidationError" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+        "502":
+          description: Upstream twin-api failed
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /api/v1/auth/login:
+    post:
+      tags: [Auth]
+      summary: Exchange credentials for an API token (Sanctum)
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string, format: password }
+      responses:
+        "200":
+          description: Token issued
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [token, role]
+                properties:
+                  token: { type: string }
+                  role: { $ref: "#/components/schemas/Role" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+  /api/v1/auth/logout:
+    post:
+      tags: [Auth]
+      summary: Revoke the current token
+      responses:
+        "204": { description: Revoked }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /api/v1/leads:
+    get:
+      tags: [Leads]
+      summary: List leads (admin, viewer)
+      parameters:
+        - { $ref: "#/components/parameters/Page" }
+        - { $ref: "#/components/parameters/PerPage" }
+        - name: status
+          in: query
+          schema: { $ref: "#/components/schemas/LeadStatus" }
+      responses:
+        "200":
+          description: Page of leads
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Pagination"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: { $ref: "#/components/schemas/Lead" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+    post:
+      tags: [Leads]
+      summary: Create a lead (called by the gateway webhook)
+      description: Authenticated with the service token, not a user token.
+      security:
+        - ServiceToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LeadCreate" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Lead" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+  /api/v1/leads/{id}:
+    parameters:
+      - { $ref: "#/components/parameters/Id" }
+    get:
+      tags: [Leads]
+      summary: Get one lead (admin, viewer)
+      responses:
+        "200":
+          description: Lead
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Lead" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    patch:
+      tags: [Leads]
+      summary: Approve or reject a lead (admin only). Writes an AuditEvent.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status:
+                  type: string
+                  enum: [approved, rejected]
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Lead" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+
+  /api/v1/conversations:
+    get:
+      tags: [Conversations]
+      summary: List conversations (admin, viewer)
+      parameters:
+        - { $ref: "#/components/parameters/Page" }
+        - { $ref: "#/components/parameters/PerPage" }
+      responses:
+        "200":
+          description: Page of conversations (without messages)
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Pagination"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: { $ref: "#/components/schemas/Conversation" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+    post:
+      tags: [Conversations]
+      summary: Store a finished conversation log (gateway, service token)
+      security:
+        - ServiceToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ConversationCreate" }
+      responses:
+        "201":
+          description: Stored
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Conversation" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+  /api/v1/conversations/{id}:
+    parameters:
+      - { $ref: "#/components/parameters/Id" }
+    get:
+      tags: [Conversations]
+      summary: Get a conversation with its messages (admin, viewer)
+      responses:
+        "200":
+          description: Conversation
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ConversationDetail" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/v1/evaluation-runs:
+    get:
+      tags: [Evaluation]
+      summary: List evaluation runs (admin, viewer)
+      parameters:
+        - { $ref: "#/components/parameters/Page" }
+        - { $ref: "#/components/parameters/PerPage" }
+        - name: defense
+          in: query
+          schema: { type: string, example: D2 }
+      responses:
+        "200":
+          description: Page of runs
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Pagination"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: { $ref: "#/components/schemas/EvaluationRun" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+    post:
+      tags: [Evaluation]
+      summary: Record a run summary (eval-reporter, service token)
+      security:
+        - ServiceToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/EvaluationRunCreate" }
+      responses:
+        "201":
+          description: Stored
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EvaluationRun" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+  /api/v1/evaluation-runs/{id}:
+    parameters:
+      - { $ref: "#/components/parameters/Id" }
+    get:
+      tags: [Evaluation]
+      summary: Get one run (admin, viewer)
+      responses:
+        "200":
+          description: Run
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EvaluationRun" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/v1/audit-events:
+    get:
+      tags: [Audit]
+      summary: List audit events (admin, viewer)
+      parameters:
+        - { $ref: "#/components/parameters/Page" }
+        - { $ref: "#/components/parameters/PerPage" }
+        - name: type
+          in: query
+          schema: { $ref: "#/components/schemas/AuditType" }
+      responses:
+        "200":
+          description: Page of events
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Pagination"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: { $ref: "#/components/schemas/AuditEvent" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+    post:
+      tags: [Audit]
+      summary: Append an audit event (gateway, eval-reporter; service token)
+      security:
+        - ServiceToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AuditEventCreate" }
+      responses:
+        "201":
+          description: Stored
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AuditEvent" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      description: Sanctum user token from /api/v1/auth/login (roles admin, viewer)
+    ServiceToken:
+      type: http
+      scheme: bearer
+      description: Static service token used by gateway and eval-reporter. Never sent to browsers.
+    GatewayApiKey:
+      type: apiKey
+      in: header
+      name: X-API-Key
+  parameters:
+    Id:
+      name: id
+      in: path
+      required: true
+      schema: { type: integer, minimum: 1 }
+    Page:
+      name: page
+      in: query
+      schema: { type: integer, minimum: 1, default: 1 }
+    PerPage:
+      name: per_page
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+  responses:
+    ValidationError:
+      description: Request body or parameters invalid
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    Unauthorized:
+      description: Missing or invalid credentials
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    Forbidden:
+      description: Authenticated but role not allowed
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    NotFound:
+      description: Resource does not exist
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    RateLimited:
+      description: Too many requests
+      headers:
+        Retry-After: { schema: { type: integer } }
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+  schemas:
+    Error:
+      type: object
+      required: [message]
+      properties:
+        message: { type: string }
+        errors:
+          type: object
+          additionalProperties:
+            type: array
+            items: { type: string }
+    Role: { type: string, enum: [admin, viewer] }
+    LeadStatus: { type: string, enum: [pending, approved, rejected] }
+    AuditType:
+      type: string
+      enum: [tool_call, policy_decision, output_guard, admin_action, eval_run]
+    Pagination:
+      type: object
+      required: [page, per_page, total]
+      properties:
+        page: { type: integer }
+        per_page: { type: integer }
+        total: { type: integer }
+    ChatMessage:
+      type: object
+      required: [role, content]
+      properties:
+        role: { type: string, enum: [user, assistant] }
+        content: { type: string, maxLength: 8000 }
+    ChatRequest:
+      type: object
+      required: [message]
+      additionalProperties: false
+      properties:
+        message: { type: string, minLength: 1, maxLength: 4000 }
+        history:
+          type: array
+          maxItems: 50
+          items: { $ref: "#/components/schemas/ChatMessage" }
+        conversation_id:
+          type: string
+          description: Omit to start a new conversation
+    ChatResponse:
+      type: object
+      required: [reply, conversation_id]
+      properties:
+        reply: { type: string }
+        conversation_id: { type: string }
+    LeadCreate:
+      type: object
+      required: [email]
+      additionalProperties: false
+      description: Mirrors the agent's `record_user_details` tool arguments.
+      properties:
+        email: { type: string, format: email, maxLength: 254 }
+        name: { type: string, maxLength: 200 }
+        notes: { type: string, maxLength: 2000 }
+        conversation_id: { type: string }
+    Lead:
+      allOf:
+        - $ref: "#/components/schemas/LeadCreate"
+        - type: object
+          required: [id, status, created_at]
+          properties:
+            id: { type: integer }
+            status: { $ref: "#/components/schemas/LeadStatus" }
+            created_at: { type: string, format: date-time }
+            reviewed_by: { type: integer, nullable: true }
+    ConversationCreate:
+      type: object
+      required: [external_id, messages]
+      additionalProperties: false
+      properties:
+        external_id: { type: string, description: The gateway's conversation_id }
+        defense: { type: string, example: D2 }
+        model: { type: string, example: qwen3:8b }
+        messages:
+          type: array
+          items: { $ref: "#/components/schemas/ChatMessage" }
+    Conversation:
+      type: object
+      required: [id, external_id, message_count, created_at]
+      properties:
+        id: { type: integer }
+        external_id: { type: string }
+        defense: { type: string, nullable: true }
+        model: { type: string, nullable: true }
+        message_count: { type: integer }
+        created_at: { type: string, format: date-time }
+    ConversationDetail:
+      allOf:
+        - $ref: "#/components/schemas/Conversation"
+        - type: object
+          properties:
+            messages:
+              type: array
+              items: { $ref: "#/components/schemas/ChatMessage" }
+    EvaluationRunCreate:
+      type: object
+      required: [run_key, defense, model, total_cases, passed_cases]
+      additionalProperties: false
+      description: Aggregated from eval/results/*/runs.jsonl by the eval-reporter.
+      properties:
+        run_key: { type: string, description: Result folder name, e.g. defenses-dev-qwen3-8b }
+        defense: { type: string, example: D2 }
+        model: { type: string }
+        total_cases: { type: integer, minimum: 0 }
+        passed_cases: { type: integer, minimum: 0 }
+        attack_success_rate: { type: number, minimum: 0, maximum: 1, nullable: true }
+        mean_latency_s: { type: number, nullable: true }
+        cost_usd: { type: number, nullable: true }
+        failed_checks:
+          type: array
+          items: { type: string }
+    EvaluationRun:
+      allOf:
+        - $ref: "#/components/schemas/EvaluationRunCreate"
+        - type: object
+          required: [id, created_at]
+          properties:
+            id: { type: integer }
+            created_at: { type: string, format: date-time }
+    AuditEventCreate:
+      type: object
+      required: [type, actor]
+      additionalProperties: false
+      properties:
+        type: { $ref: "#/components/schemas/AuditType" }
+        actor: { type: string, description: "agent, gateway, eval-reporter or an admin email" }
+        subject: { type: string, nullable: true, description: "e.g. lead:12 or conversation id" }
+        detail:
+          type: object
+          additionalProperties: true
+          description: Free-form decision data, e.g. {"decision":"deny","reason":"..."}
+    AuditEvent:
+      allOf:
+        - $ref: "#/components/schemas/AuditEventCreate"
+        - type: object
+          required: [id, created_at]
+          properties:
+            id: { type: integer }
+            created_at: { type: string, format: date-time }
