@@ -1,0 +1,9 @@
+.env
+.env.*
+summary.txt
+linkedin.pdf
+*.pdf
+__pycache__
+*.pyc
+app.py
+styles.py

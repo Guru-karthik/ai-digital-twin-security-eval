@@ -20,8 +20,20 @@ Gateway metrics are on port 9100 and the API's on nginx port 8081. Neither is pu
 ## Postgres only; MongoDB skipped
 The plan marks MongoDB conversation logs optional. Conversations are stored as JSON in Postgres, one database fewer to run and secure.
 
-## Twin-api is a stub until T1
-`infra/twin-stub` returns canned replies and extracts an email into a `record_user_details` tool call so the gateway-to-console path can be exercised. It is not the agent and the README says so. Swap the `twin-api` service in `docker-compose.yml` for the real image when `twin/Dockerfile` exists.
+## Twin-api: stub by default, real agent behind a profile
+`infra/twin-stub` returns canned replies so CI and a fresh clone need no LLM; it is not the agent and the README says so. The real agent is `twin/server.py` (`--profile agent`).
+
+## `tool_calls` means executed calls only
+`dispatcher.tool_calls` also lists calls that a defense blocked. If the gateway stored those as leads, a blocked injection attempt (for example D2's `EMAIL_PROVENANCE`) would still reach the console. `server.py` wraps the backend per request and reports only calls that reached it; blocked attempts appear in `decisions`. A test covers this. Existing agent code is unchanged.
+
+## One request at a time in the agent API
+`Defenses` keeps per-request state on a shared object, so `server.py` serialises `run_chat` with a lock instead of changing the defense code. Throughput is limited by that; fine for a demo, not for load.
+
+## Idempotent evaluation-run upsert
+The reporter re-posts results, so `POST /evaluation-runs` upserts on `(run_key, model, defense)`. The migration de-duplicates existing rows first (found by running it against data the previous version had created).
+
+## Reporter depends on nothing
+`eval-reporter` uses only the standard library, so its image has no third-party packages to patch.
 
 ## Conversation rows per turn
 The gateway is stateless and the API enforces unique `external_id`, so each turn is stored as `<conversation_id>:<n>` with the transcript so far.

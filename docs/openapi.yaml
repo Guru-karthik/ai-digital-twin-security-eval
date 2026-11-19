@@ -288,6 +288,7 @@ paths:
     post:
       tags: [Evaluation]
       summary: Record a run summary (eval-reporter, service token)
+      description: Idempotent upsert keyed on (run_key, model, defense), so the reporter can safely re-post the same results.
       security:
         - ServiceToken: []
       requestBody:
@@ -296,6 +297,11 @@ paths:
           application/json:
             schema: { $ref: "#/components/schemas/EvaluationRunCreate" }
       responses:
+        "200":
+          description: Existing run updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EvaluationRun" }
         "201":
           description: Stored
           content:
