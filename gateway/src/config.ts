@@ -7,6 +7,8 @@ export interface Config {
   rateLimitMax: number;
   rateLimitWindow: string;
   upstreamTimeoutMs: number;
+  /** Internal-only metrics port; 0 disables. Never publish it. */
+  metricsPort: number;
 }
 
 /** Fails closed: the gateway refuses to start without an API key. */
@@ -25,5 +27,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     rateLimitMax: Number(env.RATE_LIMIT_MAX ?? 30),
     rateLimitWindow: env.RATE_LIMIT_WINDOW ?? "1 minute",
     upstreamTimeoutMs: Number(env.UPSTREAM_TIMEOUT_MS ?? 60_000),
+    metricsPort: Number(env.METRICS_PORT ?? 9100),
   };
 }

@@ -1,6 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import type { FastifyInstance } from "fastify";
-import { buildApp, chunk } from "../src/app.js";
+import { buildApp, chunk, type GatewayApp } from "../src/app.js";
 import { loadConfig, type Config } from "../src/config.js";
 import { leadsFrom } from "../src/console.js";
 
@@ -11,7 +10,7 @@ interface Call { url: string; init: RequestInit }
 
 function cfg(over: Partial<Config> = {}): Config {
   return {
-    ...loadConfig({ GATEWAY_API_KEY: KEY, TWIN_API_URL: "http://twin", CONSOLE_API_URL: "http://console", CONSOLE_SERVICE_TOKEN: "svc" }),
+    ...loadConfig({ GATEWAY_API_KEY: KEY, METRICS_PORT: "0", TWIN_API_URL: "http://twin", CONSOLE_API_URL: "http://console", CONSOLE_SERVICE_TOKEN: "svc" }),
     ...over,
   };
 }
@@ -27,7 +26,7 @@ function fakeFetch(twinBody: object | (() => Response), calls: Call[], consoleSt
   }) as unknown as typeof fetch;
 }
 
-let app: FastifyInstance;
+let app: GatewayApp;
 afterEach(async () => { await app?.close(); });
 
 const post = (payload: unknown, headers: Record<string, string> = { "x-api-key": KEY }) =>
@@ -201,5 +200,29 @@ describe("rate limit", () => {
     const codes: number[] = [];
     for (let i = 0; i < 5; i++) codes.push((await post({ message: "hi" })).statusCode);
     expect(codes).toEqual([200, 200, 200, 429, 429]);
+  });
+});
+
+describe("metrics", () => {
+  it("counts requests by route and status, without user input in labels", async () => {
+    app = await buildApp(cfg(), fakeFetch({ reply: "x" }, []));
+    await post({ message: "secret visitor text" });
+    await post({ message: "hi" }, {});
+    const text = await app.metrics.metrics();
+
+    expect(text).toContain('gateway_http_requests_total{route="/chat",status="200"} 1');
+    expect(text).toContain('gateway_http_requests_total{route="/chat",status="401"} 1');
+    expect(text).not.toContain("secret visitor text");
+  });
+
+  it("counts upstream failures", async () => {
+    app = await buildApp(cfg(), fakeFetch(() => new Response("x", { status: 500 }), []));
+    await post({ message: "hi" });
+    expect(await app.metrics.metrics()).toContain("gateway_upstream_failures_total 1");
+  });
+
+  it("does not serve /metrics on the public listener", async () => {
+    app = await buildApp(cfg(), fakeFetch({ reply: "x" }, []));
+    expect((await app.inject({ url: "/metrics" })).statusCode).toBe(404);
   });
 });

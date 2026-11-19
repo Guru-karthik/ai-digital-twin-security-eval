@@ -11,6 +11,10 @@ return Application::configure(basePath: dirname(__DIR__))
         api: __DIR__.'/../routes/api.php',
         commands: __DIR__.'/../routes/console.php',
         health: '/up',
+        then: function () {
+            // No web/session middleware: scraped by Prometheus on the internal network only (nginx blocks it publicly).
+            \Illuminate\Support\Facades\Route::get('/metrics', \App\Http\Controllers\MetricsController::class);
+        },
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->appendToGroup('web', \App\Http\Middleware\SecurityHeaders::class);

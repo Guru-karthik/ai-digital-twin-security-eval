@@ -17,6 +17,8 @@ return [
     'console' => [
         // Shared secret for gateway/eval-reporter -> API calls. Empty disables service endpoints (fail closed).
         'service_token' => env('CONSOLE_SERVICE_TOKEN'),
+        // Bearer token Prometheus uses for /metrics. Empty disables the endpoint (404).
+        'metrics_token' => env('CONSOLE_METRICS_TOKEN'),
     ],
 
     'postmark' => [

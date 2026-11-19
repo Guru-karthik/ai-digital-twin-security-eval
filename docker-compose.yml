@@ -1,0 +1,94 @@
+# Admin console stack: gateway -> twin-api -> console (Laravel + Postgres), optional Prometheus/Grafana.
+#   ./infra/gen-env.sh                      # once: writes .env with random secrets
+#   docker compose up --build               # core stack
+#   docker compose --profile monitoring up  # plus Prometheus and Grafana
+# All published ports bind to 127.0.0.1. twin-api is a STUB until twin/server.py (T1) exists.
+name: twin-console
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: console
+      POSTGRES_USER: console
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?run ./infra/gen-env.sh}
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U console -d console"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  app:
+    build: {context: ./console-php, target: app}
+    environment: &console-env
+      APP_ENV: production
+      APP_DEBUG: "false"
+      APP_KEY: ${APP_KEY:?run ./infra/gen-env.sh}
+      APP_URL: http://localhost:8000
+      CONSOLE_SERVICE_TOKEN: ${CONSOLE_SERVICE_TOKEN:?run ./infra/gen-env.sh}
+      CONSOLE_METRICS_TOKEN: ${CONSOLE_METRICS_TOKEN:?run ./infra/gen-env.sh}
+      DB_CONNECTION: pgsql
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_DATABASE: console
+      DB_USERNAME: console
+      DB_PASSWORD: ${DB_PASSWORD}
+      SESSION_DRIVER: database
+      SESSION_SECURE_COOKIE: ${SESSION_SECURE_COOKIE:-false}
+      CACHE_STORE: database
+      QUEUE_CONNECTION: sync
+      LOG_CHANNEL: stderr
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-}
+      SEED_VIEWER_PASSWORD: ${SEED_VIEWER_PASSWORD:-}
+    depends_on:
+      postgres: {condition: service_healthy}
+
+  web:
+    build: {context: ./console-php, target: web}
+    ports: ["127.0.0.1:8000:80"]   # 8081 (metrics) is intentionally not published
+    depends_on: [app]
+
+  twin-api:
+    build: ./infra/twin-stub        # STUB. Replace with the real agent image once twin/Dockerfile (T1) exists.
+    expose: ["7861"]
+
+  gateway:
+    build: ./gateway
+    ports: ["127.0.0.1:8080:8080"]  # metrics port 9100 is intentionally not published
+    environment:
+      GATEWAY_API_KEY: ${GATEWAY_API_KEY:?run ./infra/gen-env.sh}
+      TWIN_API_URL: http://twin-api:7861
+      CONSOLE_API_URL: http://web
+      CONSOLE_SERVICE_TOKEN: ${CONSOLE_SERVICE_TOKEN}
+    depends_on: [twin-api, web]
+
+  prometheus:
+    profiles: [monitoring]
+    image: prom/prometheus:v3.5.0
+    # Prometheus does not expand env vars in its config, so the metrics token is written to a file first.
+    entrypoint: ["/bin/sh", "-c", "printf '%s' \"$$CONSOLE_METRICS_TOKEN\" > /tmp/metrics_token && exec /bin/prometheus --config.file=/etc/prometheus/prometheus.yml --storage.tsdb.path=/prometheus"]
+    environment:
+      CONSOLE_METRICS_TOKEN: ${CONSOLE_METRICS_TOKEN}
+    volumes: [./infra/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro, promdata:/prometheus]
+    ports: ["127.0.0.1:9090:9090"]
+    depends_on: [gateway, web]
+
+  grafana:
+    profiles: [monitoring]
+    image: grafana/grafana:12.1.0
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?run ./infra/gen-env.sh}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+    volumes:
+      - ./infra/monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infra/monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafanadata:/var/lib/grafana
+    ports: ["127.0.0.1:3000:3000"]
+    depends_on: [prometheus]
+
+volumes:
+  pgdata:
+  promdata:
+  grafanadata:

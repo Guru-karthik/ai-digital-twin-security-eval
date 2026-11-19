@@ -520,7 +520,7 @@ components:
       additionalProperties: false
       description: Aggregated from eval/results/*/runs.jsonl by the eval-reporter.
       properties:
-        run_key: { type: string, description: Result folder name, e.g. defenses-dev-qwen3-8b }
+        run_key: { type: string, description: "Result folder name, e.g. defenses-dev-qwen3-8b" }
         defense: { type: string, example: D2 }
         model: { type: string }
         total_cases: { type: integer, minimum: 0 }

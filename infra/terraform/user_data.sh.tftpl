@@ -1,0 +1,15 @@
+#!/bin/bash
+set -euo pipefail
+dnf install -y docker git
+systemctl enable --now docker
+mkdir -p /usr/local/lib/docker/cli-plugins
+curl -fsSL https://github.com/docker/compose/releases/download/v2.39.1/docker-compose-linux-x86_64 -o /usr/local/lib/docker/cli-plugins/docker-compose
+chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
+
+git clone ${repo_url} /opt/twin-console
+cd /opt/twin-console
+umask 077
+aws ssm get-parameters-by-path --region ${region} --path /${name} --with-decryption \
+  --query 'Parameters[].[Name,Value]' --output text \
+  | awk -F'\t' '{n=$1; sub(".*/","",n); print n"="$2}' > .env
+docker compose up -d --build

@@ -1,6 +1,7 @@
 import { randomUUID, timingSafeEqual, createHash } from "node:crypto";
 import Fastify, { type FastifyInstance } from "fastify";
 import rateLimit from "@fastify/rate-limit";
+import { Counter, Histogram, Registry, collectDefaultMetrics } from "prom-client";
 import type { Config } from "./config.js";
 import { reportToConsole } from "./console.js";
 import type { ChatMessage } from "./types.js";
@@ -43,7 +44,16 @@ export function chunk(text: string, size = 24): string[] {
   return out;
 }
 
-export async function buildApp(cfg: Config, f: Fetch = fetch): Promise<FastifyInstance> {
+export type GatewayApp = FastifyInstance & { metrics: Registry };
+
+export async function buildApp(cfg: Config, f: Fetch = fetch): Promise<GatewayApp> {
+  // One registry per app so tests do not share counters. Labels are bounded (route pattern + status), never user input.
+  const metrics = new Registry();
+  collectDefaultMetrics({ register: metrics });
+  const requests = new Counter({ name: "gateway_http_requests_total", help: "HTTP requests", labelNames: ["route", "status"], registers: [metrics] });
+  const duration = new Histogram({ name: "gateway_http_request_duration_seconds", help: "HTTP latency", labelNames: ["route"], registers: [metrics] });
+  const upstreamFailures = new Counter({ name: "gateway_upstream_failures_total", help: "twin-api failures", registers: [metrics] });
+
   const app = Fastify({
     // Request log without bodies. Credentials are redacted. Visitor messages are never logged.
     logger: process.env.NODE_ENV === "test" ? false : { redact: ["req.headers.x-api-key", "req.headers.authorization"] },
@@ -53,6 +63,12 @@ export async function buildApp(cfg: Config, f: Fetch = fetch): Promise<FastifyIn
   });
 
   await app.register(rateLimit, { max: cfg.rateLimitMax, timeWindow: cfg.rateLimitWindow });
+
+  app.addHook("onResponse", async (req, reply) => {
+    const route = req.routeOptions?.url ?? "unmatched";
+    requests.inc({ route, status: String(reply.statusCode) });
+    duration.observe({ route }, reply.elapsedTime / 1000);
+  });
 
   app.addHook("onSend", async (_req, reply) => {
     reply.header("x-content-type-options", "nosniff");
@@ -78,6 +94,7 @@ export async function buildApp(cfg: Config, f: Fetch = fetch): Promise<FastifyIn
       twin = await callTwin(f, cfg.twinApiUrl, body.message, history, cfg.upstreamTimeoutMs);
     } catch (err) {
       if (err instanceof UpstreamError) {
+        upstreamFailures.inc();
         req.log.warn({ reason: err.message }, "upstream failure");
         return reply.code(502).send({ message: "The twin is unavailable." });
       }
@@ -109,5 +126,5 @@ export async function buildApp(cfg: Config, f: Fetch = fetch): Promise<FastifyIn
     reply.code(status).send({ message: status >= 500 ? "Internal error." : err.message });
   });
 
-  return app;
+  return Object.assign(app, { metrics }) as unknown as GatewayApp;
 }
