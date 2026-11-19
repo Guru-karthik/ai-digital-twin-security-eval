@@ -46,24 +46,28 @@ docker compose up --build                 # dashboard :8000, gateway :8080 (127.
 docker compose run --rm app php artisan db:seed   # prints generated admin and viewer passwords
 ./infra/smoke.sh                          # end-to-end check
 docker compose --profile monitoring up    # adds Prometheus :9090 and Grafana :3000
+docker compose --profile reporting run --rm eval-reporter python -m reporter sync --results /results --api http://web   # load eval/results into the console (idempotent)
 ```
 
 | Component | Tech | Tests |
 |---|---|---|
 | `console-php/` | Laravel 13, Sanctum, Blade, Postgres | 43 PHPUnit feature tests |
 | `gateway/` | Fastify, TypeScript | 27 Vitest tests |
+| `twin/server.py` | FastAPI wrapper over the unchanged `run_chat` loop | 16 pytest tests (in the 90-test suite) |
+| `eval-reporter/` | Python, standard library only | 17 pytest tests |
 | `infra/` | Compose, Prometheus, Grafana, Terraform (AWS) | `infra/smoke.sh`, `terraform validate`, Trivy in CI |
 
 ### Honest limitations
-- **`twin-api` is a stub** (`infra/twin-stub`): canned replies, no model, no defenses. It exists so the gateway-to-console path can be exercised. The real agent has no HTTP API yet (`twin/server.py` is not written).
+- **The default `twin-api` is still a stub** (`infra/twin-stub`: canned replies, no model) so CI and a fresh clone work without an LLM. The real agent is `twin/server.py`; run it with `TWIN_API_URL=http://twin-agent:7861 docker compose --profile agent up --build` after copying your own `twin/summary.txt` and `twin/linkedin.pdf` (they are mounted, never baked into the image) and setting a model. It has been tested with a scripted model and as a container, not against a live LLM in this stack.
 - **The agent is not streaming.** With `Accept: text/event-stream` the gateway replays the finished reply in chunks.
 - **The agent has no human-approval step.** The console's approve/reject on leads is a new console feature, logged as an audit event. The audit log records decisions that exist (policy gate, output guard, tool calls) when the twin reports them.
 - **Terraform has been validated but never applied.** No cloud account was used. There is no TLS termination in the stack yet.
-- **Not built:** MongoDB conversation logs (stored as JSON in Postgres instead), the eval-reporter service, the security-test suite.
+- **Not built:** MongoDB conversation logs (stored as JSON in Postgres instead) and the security-test suite.
+- **Evaluation runs in the console** summarise attack trials only (attack success rate, passed/total, latency, cost, failing cases). Benign over-refusal is not included. Existing `eval/results/*/table_asr.csv` files can be stale (the qwen3 D0 one predates a larger run); the reporter reads `runs.jsonl`, and its counts match `eval.harness.stats`.
 - Trivy findings are point-in-time; a new CVE in a base image can fail the `images` workflow later.
 
 ### Who built what
 | Part | Owner |
 |---|---|
-| Laravel API and dashboard, Node gateway, Docker Compose, CI workflows, observability, Terraform | Guru |
+| Laravel API and dashboard, Node gateway, agent HTTP API (`twin/server.py`), eval-reporter, Docker Compose, CI workflows, observability, Terraform | Guru |
 | Agent (`twin/`), evaluation harness (`eval/`), defenses, tests | existing project |
