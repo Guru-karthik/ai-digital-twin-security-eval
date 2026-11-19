@@ -13,10 +13,10 @@ class EnsureRole
     {
         $user = $request->user();
         if (! $user) {
-            return response()->json(['message' => 'Unauthenticated.'], 401);
+            abort(401, 'Unauthenticated.');
         }
         if (! in_array($user->role, $roles, true)) {
-            return response()->json(['message' => 'Forbidden.'], 403);
+            abort(403, 'Forbidden.');
         }
 
         return $next($request);
