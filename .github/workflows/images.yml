@@ -1,8 +1,8 @@
 name: images
 # Scans every image with Trivy. Pushes to GHCR only from main in the repository that owns the registry namespace.
 on:
-  push: {branches: [main], paths: ["console-php/**", "gateway/**", "infra/twin-stub/**", ".github/workflows/images.yml"]}
-  pull_request: {paths: ["console-php/**", "gateway/**", "infra/twin-stub/**", ".github/workflows/images.yml"]}
+  push: {branches: [main], paths: ["console-php/**", "gateway/**", "infra/twin-stub/**", "twin/**", "eval-reporter/**", ".github/workflows/images.yml"]}
+  pull_request: {paths: ["console-php/**", "gateway/**", "infra/twin-stub/**", "twin/**", "eval-reporter/**", ".github/workflows/images.yml"]}
 permissions: {contents: read}
 jobs:
   scan-and-push:
@@ -16,6 +16,8 @@ jobs:
           - {name: console-web, context: console-php, target: web}
           - {name: gateway, context: gateway, target: ""}
           - {name: twin-stub, context: infra/twin-stub, target: ""}
+          - {name: twin-agent, context: twin, target: ""}
+          - {name: eval-reporter, context: eval-reporter, target: ""}
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
