@@ -1,0 +1,8 @@
+.env
+.env.*
+.git
+.venv
+eval/manual/persona
+twin/summary.txt
+**/node_modules
+**/vendor
