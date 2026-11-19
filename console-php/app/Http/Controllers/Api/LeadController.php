@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\AuditEvent;
 use App\Models\Lead;
 use Illuminate\Http\Request;
 
@@ -44,13 +43,7 @@ class LeadController extends Controller
     {
         $data = $request->validate(['status' => ['required', 'in:approved,rejected']]);
 
-        $lead->forceFill(['status' => $data['status'], 'reviewed_by' => $request->user()->id])->save();
-        AuditEvent::create([
-            'type' => 'admin_action',
-            'actor' => $request->user()->email,
-            'subject' => 'lead:'.$lead->id,
-            'detail' => ['status' => $data['status']],
-        ]);
+        $lead->review($data['status'], $request->user());
 
         return $lead;
     }
