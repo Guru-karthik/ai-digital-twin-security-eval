@@ -66,4 +66,4 @@ docker compose --profile monitoring up    # adds Prometheus :9090 and Grafana :3
 | Part | Owner |
 |---|---|
 | Laravel API and dashboard, Node gateway, Docker Compose, CI workflows, observability, Terraform | Guru |
-| Agent (`twin/`), evaluation harness (`eval/`), defenses, tests | existing project |
+| Agent (`twin/`), evaluation harness (`eval/`), defenses, tests | Thanushree Sridhara |
