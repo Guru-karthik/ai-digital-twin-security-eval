@@ -8,3 +8,5 @@ scrape_configs:
     authorization:
       credentials_file: /tmp/metrics_token
     static_configs: [{targets: ["web:8081"]}]
+  - job_name: eval-reporter   # reports "down" unless the reporting profile is running
+    static_configs: [{targets: ["eval-reporter:9200"]}]

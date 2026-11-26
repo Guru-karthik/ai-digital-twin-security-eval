@@ -1,6 +1,6 @@
 # Architecture and Experimental Setup
 
-Status as of 2026-11-10, branch `phase-2b-cases`. This document describes the system under test (SUT), the evaluation
+Status as of 2026-11-26. This document describes the system under test (SUT), the evaluation
 harness built around it, the experimental design, and the validity limits. Each component is marked
 **[implemented]**, **[planned]** or **[unverified]**. Nothing here reports a result; results live in `eval/results/`
 and every number must trace to a run log there. The threat model and protocol are in `docs/threat-model.md`, the
@@ -71,7 +71,7 @@ Two properties hold the design together:
 | `app.py` | Gradio `ChatInterface`; builds a `Dispatcher` per request so no per-request state is shared. Shows the AI-assistant disclosure line. |
 | `agent.py` | `run_chat(client, config, system_prompt, dispatcher, message, history, logger)`: the v0 tool-calling loop, extracted so the harness can drive it without Gradio. Temperature is sent only when configured; `max_iterations` caps the loop only when configured. |
 | `context.py` | Builds the system prompt from the role intro, the CV (`linkedin.pdf`), `summary.txt`, the rules, and an internal-reference section. The harness substitutes a fictional persona (`eval/fixtures/persona.json`) and a planted canary. |
-| `dispatcher.py` | The single choke point for tool calls. In D0 it is a pass-through. Hooks may return `None` (allow) or `(reason_code, message)` (block); every decision is recorded. D2 policy rules attach here **[planned]**. |
+| `dispatcher.py` | The single choke point for tool calls. In D0 it is a pass-through. Hooks may return `None` (allow) or `(reason_code, message)` (block); every decision is recorded. D2 policy rules attach here **[implemented]**. |
 | `backends.py` | `ToolBackend` interface; `RealBackend` (Pushover, same message text as v0); `MockBackend` (records tool, arguments, session, turn, timestamp; configurable results, including attacker-authored results for entry point E5). `make_backend(config)` forces the mock in test mode. |
 | `tools.py` | Tool schemas: `record_user_details` (lead capture: email, name, notes) and `record_unknown_question`. |
 | `config.py` | Frozen `Config`: defense level D0–D3, modules M1–M3, provider, model, temperature, `max_iterations`, `test_mode`, log path, and a stable `config_hash()` stamped on every run record. Defaults reproduce v0. |
@@ -110,19 +110,20 @@ surface the defenses must address:
 - The summary document and tool results are inserted into the model context without a trust boundary.
 - No lead store exists: `record_user_details` only sends a notification.
 
-### 3.3 Defense levels (design; D1–D3 and M1 not yet built)
+### 3.3 Defense levels (`twin/defenses/`; implemented, not yet analysed)
 
 | Level | Content | Status |
 |---|---|---|
 | D0 | Baseline, identical to v0 | **implemented**, equivalence-tested |
-| D1 | Prompt hardening (trust boundaries, explicit refusal rules, canary awareness) | **[planned]** Phase 3 |
-| D2 | Policy gate in the dispatcher: schema validation, length caps, per-session limits, argument provenance, confirmation state machine, notification sanitiser | **[planned]** |
-| D3 | Output and grounding checks: canary/prompt-overlap, secret scan, URL/markdown filter, moderation, grounding judge, regenerate-once then safe reply | **[planned]** |
-| M1 | Injection detector (ablation on D2); classifier behind an interface so CI uses a stub | **[planned, optional]** |
+| D1 | Prompt hardening and wrapping of tool results | **[implemented]** |
+| D2 | Policy gate in the dispatcher: schema validation, length caps, per-request and per-session limits, email provenance, notification sanitiser, input and history limits; confirmation state machine (off by default) | **[implemented]** |
+| D3 | Output checks: canary/prompt overlap, secret scan, link filter, length cap, regenerate-once then safe reply. Moderation is not implemented; the grounding check is an optional hook with no judge connected | **[implemented, partial]** |
+| M1 | Injection detector: pattern-based heuristic behind a `score` interface, not a trained classifier | **[implemented, optional]** |
 | M2 / M3 | PII masking / tiered disclosure | not scheduled |
 
-Defenses are cumulative (D1 ⊂ D2 ⊂ D3). Each rule will carry a reason code and a unit test, and the false-block rate on
-the benign set is measured after each level.
+Defenses are cumulative (D1 ⊂ D2 ⊂ D3). Rules record reason codes and are tested in `tests/test_defenses.py`. Run logs
+for D1, D2, D3 and D2+M1 on the dev split are in `eval/results/defenses-dev-*`. They have not been analysed: no attack
+success rate or false-block rate is claimed for any defense.
 
 ### 3.4 Tool configurations
 
@@ -271,8 +272,8 @@ owner's shell; the harness never reads `.env`.
 | CI | `.github/workflows/ci.yml`: pytest and ruff, stub models only, no keys |
 | Containers | `Dockerfile.test` and `docker-compose.test.yml` for isolated test runs |
 | Pinned dependencies | `requirements-dev.txt`, `twin/requirements.txt` |
-| Tests | 54 tests: D0 equivalence, infrastructure, scorers, mutators, runner, stats |
-| Tags | `v0-baseline` (done); `v1-defenses` at the end of Phase 3 **[planned]** |
+| Tests | 90 tests: D0 equivalence, infrastructure, scorers, mutators, runner, stats, defenses, server |
+| Tags | `v0-baseline` (done); `v1-defenses` after the defenses are analysed and frozen **[planned]** |
 
 Local invocation (from the repository root; running from a subdirectory breaks relative paths):
 
@@ -328,6 +329,6 @@ Dockerfile.test, docker-compose.test.yml, requirements-dev.txt, ruff.toml
 | 0 | Reconnaissance, findings, secret scan, disclosure line, tag `v0-baseline` | done (history scan with a dedicated tool still open) |
 | 1 | Testability: config, dispatcher, backends, run log, equivalence test, CI | done |
 | 2 | Harness, scorers, stats, models, case batches 1–2, D0 dev baselines | done for dev split; test split not run |
-| 3 | Defenses D1–D3, M1 optional; tag `v1-defenses` | next |
+| 3 | Defenses D1–D3, M1 optional; tag `v1-defenses` | implemented; analysis and tag pending |
 | 4 | New tools and RQ5 | planned |
 | 5 | Adaptive attacker, `docs/REPORT.md`, dataset card, reproduce-table target | planned |

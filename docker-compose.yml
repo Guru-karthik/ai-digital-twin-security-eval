@@ -53,12 +53,41 @@ services:
     build: ./infra/twin-stub        # STUB. Replace with the real agent image once twin/Dockerfile (T1) exists.
     expose: ["7861"]
 
+  # The real agent. Not started by default (needs a model). Use: TWIN_API_URL=http://twin-agent:7861 docker compose --profile agent up --build
+  # Personal documents are mounted, never baked into the image: copy twin/summary.txt and twin/linkedin.pdf first.
+  twin-agent:
+    profiles: [agent]
+    build: ./twin
+    expose: ["7861"]
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}          # e.g. http://host.docker.internal:11434/v1 for Ollama
+      TWIN_MODEL: ${TWIN_MODEL:-gpt-5.4-mini}
+      TWIN_DEFENSE: ${TWIN_DEFENSE:-D2}
+      TWIN_TEST_MODE: ${TWIN_TEST_MODE:-true}         # true = mock tools, Pushover is never called
+      TWIN_SUMMARY_TXT: /run/twin/summary.txt
+      TWIN_LINKEDIN_PDF: /run/twin/linkedin.pdf
+    volumes:
+      - ./twin/summary.txt:/run/twin/summary.txt:ro
+      - ./twin/linkedin.pdf:/run/twin/linkedin.pdf:ro
+
+  # Reads eval/results read-only. One-shot sync into the console:
+  #   docker compose --profile reporting run --rm eval-reporter python -m reporter sync --results /results --api http://web
+  # (needs CONSOLE_SERVICE_TOKEN, which compose passes from .env). Default command serves /metrics on an unpublished port.
+  eval-reporter:
+    profiles: [reporting]
+    build: ./eval-reporter
+    environment:
+      CONSOLE_SERVICE_TOKEN: ${CONSOLE_SERVICE_TOKEN}
+    volumes: [./eval/results:/results:ro]
+    depends_on: [web]
+
   gateway:
     build: ./gateway
     ports: ["127.0.0.1:8080:8080"]  # metrics port 9100 is intentionally not published
     environment:
       GATEWAY_API_KEY: ${GATEWAY_API_KEY:?run ./infra/gen-env.sh}
-      TWIN_API_URL: http://twin-api:7861
+      TWIN_API_URL: ${TWIN_API_URL:-http://twin-api:7861}   # set to http://twin-agent:7861 with --profile agent
       CONSOLE_API_URL: http://web
       CONSOLE_SERVICE_TOKEN: ${CONSOLE_SERVICE_TOKEN}
     depends_on: [twin-api, web]

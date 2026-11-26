@@ -41,6 +41,12 @@ class EvaluationRunController extends Controller
             'failed_checks.*' => ['string', 'max:500'],
         ]);
 
-        return response()->json(EvaluationRun::create($data)->refresh(), 201);
+        // Idempotent: re-posting the same (run_key, model, defense) updates that run instead of duplicating it.
+        $run = EvaluationRun::updateOrCreate(
+            ['run_key' => $data['run_key'], 'model' => $data['model'], 'defense' => $data['defense']],
+            $data,
+        );
+
+        return response()->json($run->refresh(), $run->wasRecentlyCreated ? 201 : 200);
     }
 }

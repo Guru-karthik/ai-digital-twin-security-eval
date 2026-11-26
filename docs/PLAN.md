@@ -13,7 +13,7 @@ The repo has a Python "digital twin" agent (`twin/`) and a security-evaluation h
 - **Docker**: only `Dockerfile.test` / `docker-compose.test.yml` (placeholder agent+sink, locked-down network). No production image. **The real agent can run in Docker** (pure Python), so no stub is needed.
 - **Secrets**: `.env` is untracked and was never committed (holds 3 API keys; rotate if ever shared). Tracked files contain only fake test keys in `tests/`. Only the 21 local commits were scanned; the 3,000+ upstream commits were not, and gitleaks has not been run. M0 runs gitleaks and reports.
 - **Personal data**: `twin/summary.txt` (tracked) holds real personal details; `eval/manual/persona/` is ignored. You chose "keep as is"; we only document this in docs/SECURITY.md and keep `.env`/persona folders out of Docker contexts via `.dockerignore`.
-- `docs/ARCHITECTURE.md` still says D1-D3/M1 are unbuilt (stale). We append a note in the new docs rather than edit it.
+- `docs/ARCHITECTURE.md` was updated on 2026-11-26: D1-D3/M1 are implemented, not yet analysed.
 
 ## 2. Architecture
 ```mermaid

@@ -176,6 +176,37 @@
           "refId": "A"
         }
       ]
+    },
+    {
+      "id": 7,
+      "type": "bargauge",
+      "title": "Attack success rate by defense (eval-reporter)",
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 24
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "eval_attack_success_rate",
+          "legendFormat": "{{run_key}} / {{model}} / {{defense}}",
+          "refId": "A",
+          "instant": true
+        }
+      ]
     }
   ]
 }
