@@ -1,16 +1,27 @@
 # AI Digital Twin: security evaluation
 
 A tool-using, document-grounded chat agent (the "digital twin") plus a reproducible harness that measures how well
-layered defenses (D0 to D3, modules M1 to M3) resist prompt injection, indirect injection and tool misuse.
+layered defenses (baseline D0, defenses D1 to D3, module M1) resist prompt injection, indirect injection and tool misuse.
 
 - `twin/` the agent (Gradio chat, OpenAI-compatible API, two tools, mock or real backend)
 - `eval/` cases (`eval/cases`), harness (`eval/harness`), model registry (`eval/models.yaml`), results (`eval/results`)
 - `docs/` threat model and protocol, implementation plan, architecture findings, model licence notes
 - `tests/` pytest suite including a D0-equivalence test against a frozen copy of the baseline loop
 
-Status: baseline (D0) refactor and evaluation harness done; defenses (D1 to D3), new tools and the adaptive
-attacker are planned in `docs/IMPLEMENTATION_PLAN.md`. Results under `eval/results/stub-dev` come from stub models
-and are not findings about any real model.
+Status: the baseline (D0) refactor, the evaluation harness and the defenses (D1 to D3, plus the M1 module) are
+implemented. **The defenses have not been analysed**: run logs for the dev split are in `eval/results/defenses-dev-*`,
+but this repository makes no claim about how well any defense works, and the held-out test split has not been run.
+New tools and the adaptive attacker are planned in `docs/IMPLEMENTATION_PLAN.md`. Results under
+`eval/results/stub-dev` come from stub models and are not findings about any real model.
+
+| Level | What it does (select with `TWIN_DEFENSE`; M1 with `TWIN_MODULES`) |
+|---|---|
+| D1 | Prompt hardening and wrapping of tool results |
+| D2 | Policy gate on tool calls: schema, length and rate limits, email provenance, argument sanitiser; input and history limits. Lead confirmation exists but is off by default |
+| D3 | Reply checks: canary and prompt overlap, secret redaction, link stripping, length cap, one regeneration then a safe reply. No moderation; the grounding check is an unconnected optional hook |
+| M1 | Pattern-based injection detector for documents and tool results (a heuristic, not a trained classifier) |
+
+Levels are cumulative (D2 includes D1, D3 includes D2).
 
 ## Run
 ```
