@@ -70,4 +70,4 @@ docker compose --profile reporting run --rm eval-reporter python -m reporter syn
 | Part | Owner |
 |---|---|
 | Laravel API and dashboard, Node gateway, agent HTTP API (`twin/server.py`), eval-reporter, Docker Compose, CI workflows, observability, Terraform | Guru |
-| Agent (`twin/`), evaluation harness (`eval/`), defenses, tests | existing project |
+| Agent (`twin/`), evaluation harness (`eval/`), defenses, tests | Thanushree Sridhara |
